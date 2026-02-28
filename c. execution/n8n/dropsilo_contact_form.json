@@ -1,0 +1,201 @@
+{
+  "name": "Dropsilo Contact Form",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dropsilo-contact",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1000000-0000-0000-0000-000000000001",
+      "name": "Webhook - Contact Form",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "dropsilo-contact"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst data = raw.body || raw;\nconst errors = [];\n\nconst required = ['name', 'email', 'message'];\nfor (const field of required) {\n  if (!data[field] || String(data[field]).trim() === '') {\n    errors.push(field);\n  }\n}\n\nif (data.email && !data.email.includes('@')) {\n  errors.push('email (invalid format)');\n}\n\nconst interestLabels = {\n  audit: 'Process Audit',\n  automation: 'Workflow Automation',\n  integration: 'System Integration',\n  ai: 'AI / LLM Deployment',\n  general: 'General Inquiry'\n};\n\nconst fullName = String(data.name || '').trim();\nconst firstName = fullName.includes(' ') ? fullName.split(' ')[0] : fullName;\n\nreturn [{\n  json: {\n    name: fullName,\n    firstName: firstName,\n    email: String(data.email || '').trim(),\n    company: String(data.company || '').trim() || '—',\n    interest: data.interest || '',\n    interestLabel: interestLabels[data.interest] || 'General Inquiry',\n    message: String(data.message || '').trim(),\n    submitted: new Date().toISOString(),\n    _valid: errors.length === 0 ? 'yes' : 'no',\n    _errors: errors\n  }\n}];"
+      },
+      "id": "b1000000-0000-0000-0000-000000000002",
+      "name": "Validate Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json._valid }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1000000-0000-0000-0000-000000000003",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'error', message: 'Missing required fields: ' + $json._errors.join(', ') }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "b1000000-0000-0000-0000-000000000004",
+      "name": "Respond - Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [860, 520]
+    },
+    {
+      "parameters": {
+        "fromEmail": "cadewayn@gmail.com",
+        "toEmail": "hello@dropsilo.ai",
+        "subject": "=New Lead: {{ $json.name }} — {{ $json.interestLabel }}",
+        "html": "=<div style=\"font-family: sans-serif; font-size: 14px; color: #333;\"><p>New contact form submission from dropsilo.ai</p><hr style=\"border: 1px solid #ccc;\"><p><strong>Full Name:</strong> {{ $json.name }}<br><strong>Email:</strong> {{ $json.email }}<br><strong>Company:</strong> {{ $json.company }}<br><strong>Interested In:</strong> {{ $json.interestLabel }}</p><hr style=\"border: 1px solid #ccc;\"><p><strong>Operational Challenge:</strong><br>{{ $json.message }}</p><hr style=\"border: 1px solid #ccc;\"><p style=\"font-size: 12px; color: #888;\">Submitted: {{ $json.submitted }}</p></div>",
+        "options": {
+          "senderName": "Dropsilo Contact Form"
+        }
+      },
+      "id": "b1000000-0000-0000-0000-000000000005",
+      "name": "Email - Notify Team",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [860, 300],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "cadewayn@gmail.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Thanks for reaching out — Dropsilo",
+        "html": "=<div style=\"font-family: sans-serif; font-size: 14px; color: #333; line-height: 1.6;\"><p>Hi {{ $json.firstName }},</p><p>Thanks for reaching out! We received your message and we're looking forward to learning more about your business.</p><p>I'll personally follow up within 24 hours to schedule your free 30-minute consultation.</p><p>In the meantime, here are a few things worth thinking about before we talk — they'll help us make the most of our time together:</p><p><strong>YOUR CURRENT BOTTLENECKS</strong><br>— What process eats up the most time for you or your team each week?<br>— Where do things break down or fall through the cracks most often?<br>— Are there tasks your team does manually that feel like they should be automated?</p><p><strong>YOUR TECH STACK</strong><br>— What tools does your team rely on day to day? (CRM, spreadsheets, email, project management, accounting, etc.)<br>— Are there tools that don't talk to each other the way you wish they would?<br>— Do you have any legacy systems or processes you've been meaning to replace?</p><p><strong>YOUR GOALS</strong><br>— If you could wave a wand and fix one operational problem tomorrow, what would it be?<br>— Are you looking to save time, reduce errors, cut costs — or all three?<br>— Is there a specific workflow or department you'd like to focus on first?</p><p>You don't need to have answers to all of these — they're just conversation starters. We'll figure out the rest together on the call.</p><p>Talk soon,</p><p>Eli Wayne<br>Dropsilo<br>hello@dropsilo.com</p></div>",
+        "options": {
+          "senderName": "Dropsilo"
+        }
+      },
+      "id": "b1000000-0000-0000-0000-000000000006",
+      "name": "Email - Confirm Submitter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1100, 300],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', message: 'Submission received' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b1000000-0000-0000-0000-000000000007",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Contact Form": {
+      "main": [
+        [
+          {
+            "node": "Validate Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Fields": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Email - Notify Team",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Notify Team": {
+      "main": [
+        [
+          {
+            "node": "Email - Confirm Submitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email - Confirm Submitter": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

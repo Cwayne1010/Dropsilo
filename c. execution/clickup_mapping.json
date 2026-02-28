@@ -1,0 +1,60 @@
+{
+  "workspace_name": "Dropsilo",
+  "workspace_id": "9017737465",
+  "space_name": "Dropsilo",
+  "space_id": "90173927958",
+  "list_name": "Project",
+  "list_id": "901710557083",
+  "note": "ClickUp uses task/subtask hierarchy, not folders/lists. All tasks are created in the Project list. Set the parent_task_id to file under the right category subtask. To create a subtask via API, add 'parent' to the task creation payload.",
+  "note_subfolders_removed": "Strategy subfolders were flattened on 2026-02-16. Former subfolder ClickUp task IDs preserved below for reference.",
+  "mappings": {
+    "1_centralized_database": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzp74xu", "clickup_name": "Customer Information", "former_subfolder": "customer_information"},
+        {"parent_task_id": "86dzp74ve", "clickup_name": "Current Operations", "former_subfolder": "methodology"},
+        {"parent_task_id": "86dzp74um", "clickup_name": "Regulation Policy", "former_subfolder": "regulation_policy_structure"}
+      ]
+    },
+    "2_business_model": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzp74yt", "clickup_name": "Branding", "former_subfolder": "branding_risk_analysis"},
+        {"parent_task_id": "86dzp74yj", "clickup_name": "Pricing", "former_subfolder": "implement_price_vs_recurring"},
+        {"parent_task_id": "86dzp74yn", "clickup_name": "Network", "former_subfolder": "network"},
+        {"parent_task_id": "86dzp74z0", "clickup_name": "Outreach", "former_subfolder": "outreach_pitch"}
+      ]
+    },
+    "3_product": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzp74za", "clickup_name": "Automations", "former_subfolder": "automations"},
+        {"parent_task_id": "86dzpg424", "clickup_name": "Centralized Database Interfaces", "former_subfolder": "centralized_database_interfaces"},
+        {"parent_task_id": "86dzpg4e3", "clickup_name": "Software", "former_subfolder": "software"}
+      ]
+    },
+    "4_hardware_infrastructure": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzp750f", "clickup_name": "CapEx vs ProEx", "former_subfolder": "capex_vs_opex"},
+        {"parent_task_id": "86dzp750z", "clickup_name": "equipment", "former_subfolder": "equipment"}
+      ]
+    },
+    "5_general_consultancy": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzpg4fm", "clickup_name": "Content Strategy", "former_subfolder": "content_strategy"},
+        {"parent_task_id": "86dzpg4h0", "clickup_name": "Work Tier System", "former_subfolder": "freelance_work_tier_system"},
+        {"parent_task_id": "86dzpg4nb", "clickup_name": "Readiness Audits", "former_subfolder": "readiness_audits"}
+      ]
+    },
+    "6_user_input": {
+      "list_id": "901710557083",
+      "former_subtasks": [
+        {"parent_task_id": "86dzpg4rk", "clickup_name": "Feature Requests", "former_subfolder": "feature_requests"},
+        {"parent_task_id": "86dzpg4rv", "clickup_name": "Feedback", "former_subfolder": "feedback_collection"},
+        {"parent_task_id": "86dzpg4uq", "clickup_name": "Iteration", "former_subfolder": "iteration_cycles"}
+      ]
+    }
+  }
+}

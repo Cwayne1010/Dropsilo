@@ -1,0 +1,33 @@
+# Dropsilo dbt Profiles Template
+# -------------------------------------------------
+# SETUP: Copy this file to ~/.dbt/profiles.yml
+# Fill in values using environment variables from .env
+# Never commit the actual profiles.yml to version control.
+# -------------------------------------------------
+
+dropsilo:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH') }}"
+      database: DROPSILO_DB
+      schema: DBT_DEV
+      threads: 4
+      client_session_keep_alive: false
+
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE', 'TRANSFORMER') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE', 'COMPUTE_WH') }}"
+      database: DROPSILO_DB
+      schema: DBT_PROD
+      threads: 8
+      client_session_keep_alive: false

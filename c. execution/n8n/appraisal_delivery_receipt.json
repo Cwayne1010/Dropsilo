@@ -1,0 +1,305 @@
+{
+  "name": "Appraisal Delivery Receipt",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appraisal-delivery",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d1000000-0000-0000-0000-000000000001",
+      "name": "Webhook - Receive Delivery",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "appraisal-delivery"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst data = raw.body || raw;\nreturn [{ json: data }];"
+      },
+      "id": "d1000000-0000-0000-0000-000000000002",
+      "name": "Extract Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst errors = [];\n\nconst required = ['order_id', 'appraiser_id', 'report_url'];\nfor (const field of required) {\n  if (!data[field] || String(data[field]).trim() === '') {\n    errors.push(`Missing required field: ${field}`);\n  }\n}\n\n// Basic URL check\nif (data.report_url && !data.report_url.startsWith('http')) {\n  errors.push('report_url must be a valid URL starting with http');\n}\n\nreturn [{\n  json: {\n    ...data,\n    _valid: errors.length === 0 ? 'yes' : 'no',\n    _errors: errors\n  }\n}];"
+      },
+      "id": "d1000000-0000-0000-0000-000000000003",
+      "name": "Validate Delivery",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json._valid }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d1000000-0000-0000-0000-000000000004",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: $json._errors }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "d1000000-0000-0000-0000-000000000005",
+      "name": "Respond - Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1080, 520]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list",
+          "cachedResultName": "Orders"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "lookupColumn": "order_id",
+              "lookupValue": "={{ $json.order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d1000000-0000-0000-0000-000000000006",
+      "name": "Get Order Details",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1080, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const delivery = $('Validate Delivery').first().json;\nconst order = $input.first().json;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    order_id: delivery.order_id,\n    appraiser_id: delivery.appraiser_id,\n    report_url: delivery.report_url,\n    report_type: delivery.report_type || 'PDF',\n    delivery_notes: delivery.notes || '',\n    delivered_at: now,\n    // Order details for email\n    property_address: order.property_address || '',\n    property_type: order.property_type || '',\n    scope: order.scope || '',\n    contact_name: order.contact_name || '',\n    contact_email: order.contact_email || '',\n    engaged_appraiser_name: order.engaged_appraiser_name || '',\n    engaged_fee: order.engaged_fee || ''\n  }\n}];"
+      },
+      "id": "d1000000-0000-0000-0000-000000000007",
+      "name": "Merge Delivery & Order",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list",
+          "cachedResultName": "Orders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $json.order_id }}",
+            "status": "qc_pending",
+            "delivered_at": "={{ $json.delivered_at }}",
+            "report_url": "={{ $json.report_url }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "matchingColumns": ["order_id"]
+      },
+      "id": "d1000000-0000-0000-0000-000000000008",
+      "name": "Update Order - Delivered",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1520, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Merge Delivery & Order').first().json.contact_email }}",
+        "subject": "=Appraisal Report Delivered — Order #{{ $('Merge Delivery & Order').first().json.order_id }}",
+        "message": "=Dear {{ $('Merge Delivery & Order').first().json.contact_name }},\n\nThe appraisal report for your order has been delivered.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nDELIVERY DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nOrder #:     {{ $('Merge Delivery & Order').first().json.order_id }}\nProperty:    {{ $('Merge Delivery & Order').first().json.property_address }}\nType:        {{ $('Merge Delivery & Order').first().json.property_type }}\nScope:       {{ $('Merge Delivery & Order').first().json.scope }}\nAppraiser:   {{ $('Merge Delivery & Order').first().json.engaged_appraiser_name }}\nFee:         ${{ $('Merge Delivery & Order').first().json.engaged_fee }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nREPORT ACCESS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nReport: {{ $('Merge Delivery & Order').first().json.report_url }}\nFormat: {{ $('Merge Delivery & Order').first().json.report_type }}\n\nThis report is now undergoing our quality control\nreview. You will be notified if any revisions are\nrequested.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nBest regards,\nOrder Desk",
+        "options": {}
+      },
+      "id": "d1000000-0000-0000-0000-000000000009",
+      "name": "Notify Client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1740, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, order_id: $('Merge Delivery & Order').first().json.order_id, status: 'qc_pending', message: 'Delivery received. Client notified. QC review pending.' }) }}"
+      },
+      "id": "d1000000-0000-0000-0000-000000000010",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Receive Delivery": {
+      "main": [
+        [
+          {
+            "node": "Extract Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Body": {
+      "main": [
+        [
+          {
+            "node": "Validate Delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Delivery": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Get Order Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Order Details": {
+      "main": [
+        [
+          {
+            "node": "Merge Delivery & Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Delivery & Order": {
+      "main": [
+        [
+          {
+            "node": "Update Order - Delivered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order - Delivered": {
+      "main": [
+        [
+          {
+            "node": "Notify Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Client": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Appraisal"
+    }
+  ],
+  "triggerCount": 1
+}

@@ -1,0 +1,59 @@
+version: 2
+
+sources:
+  - name: raw_tier1
+    database: DROPSILO_DB
+    schema: RAW_TIER1
+    description: "Core banking flat file ingestion layer. Nightly full snapshots from bank core systems via SFTP."
+    tables:
+      - name: raw_customers
+        description: "One row per customer relationship. No PII — customer_id is the key."
+        columns:
+          - name: customer_id
+            description: "Core system unique customer ID. Primary key."
+          - name: customer_type
+            description: "IND, BUS, TRUST, GOV"
+          - name: customer_status
+            description: "ACTIVE, INACTIVE, DECEASED, CLOSED"
+          - name: _ingested_at
+            description: "Timestamp when this row was loaded into Snowflake."
+          - name: _source_filename
+            description: "Source filename from the SFTP delivery."
+
+      - name: raw_loans
+        description: "One row per loan account. Covers commercial, consumer, mortgage, and lines of credit."
+        columns:
+          - name: loan_id
+            description: "Core system unique loan account number. Primary key."
+          - name: customer_id
+            description: "Foreign key to raw_customers."
+          - name: loan_status
+            description: "CURRENT, PAST_DUE, NON_ACCRUAL, CHARGEOFF, PAID, DEMAND"
+          - name: _ingested_at
+            description: "Timestamp when this row was loaded into Snowflake."
+          - name: _source_filename
+            description: "Source filename from the SFTP delivery."
+
+      - name: raw_deposits
+        description: "One row per deposit account."
+        columns:
+          - name: account_id
+            description: "Core system unique deposit account number. Primary key."
+          - name: customer_id
+            description: "Foreign key to raw_customers."
+          - name: account_status
+            description: "ACTIVE, DORMANT, CLOSED, FROZEN"
+          - name: _ingested_at
+            description: "Timestamp when this row was loaded into Snowflake."
+          - name: _source_filename
+            description: "Source filename from the SFTP delivery."
+
+# External source blocks are added here as each fetch script populates its Snowflake table.
+# Do not add source entries for tables that do not yet exist in Snowflake.
+# Scaffold stg_ models exist but are disabled (enabled=false) until sources are declared here.
+#
+# Future entries to add:
+#   - name: raw_external / fred_rates        (after fetch_fred_rates.py is built)
+#   - name: raw_external / ffiec_call_reports (after fetch_ffiec.py is built)
+#   - name: raw_external / census_zip_demographics (after fetch_census.py is built)
+#   - name: raw_unstructured / documents     (after Cortex pipeline is built)

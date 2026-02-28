@@ -1,0 +1,234 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Staged customer data from RAW_TIER1.raw_customers. Type-cast and null-coerced. No PII."
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['IND', 'BUS', 'TRUST', 'GOV']
+      - name: customer_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ACTIVE', 'INACTIVE', 'DECEASED', 'CLOSED']
+      - name: customer_since_date
+        tests:
+          - not_null
+      - name: state
+        tests:
+          - not_null
+      - name: zip
+        tests:
+          - not_null
+      - name: relationship_officer_id
+        tests:
+          - not_null
+      - name: kyc_status
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['VERIFIED', 'PENDING', 'REVIEW', 'FAILED']
+              config:
+                where: "kyc_status is not null"
+      - name: aml_risk_rating
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['LOW', 'MEDIUM', 'HIGH']
+              config:
+                where: "aml_risk_rating is not null"
+
+  - name: stg_loans
+    description: "Staged loan data from RAW_TIER1.raw_loans. All numeric fields cast to float."
+    columns:
+      - name: loan_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: officer_id
+        tests:
+          - not_null
+      - name: loan_type_code
+        tests:
+          - not_null
+      - name: loan_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['CURRENT', 'PAST_DUE', 'NON_ACCRUAL', 'CHARGEOFF', 'PAID', 'DEMAND']
+      - name: rate_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['FIXED', 'VARIABLE']
+      - name: accrual_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ACCRUAL', 'NON_ACCRUAL']
+      - name: interest_rate
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 30
+              config:
+                description: "Interest rate must be in decimal percent (0-30%), not basis points"
+      - name: past_due_days
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 99999
+      - name: current_outstanding_balance
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 999999999999
+      - name: original_balance
+        tests:
+          - not_null
+      - name: origination_date
+        tests:
+          - not_null
+      - name: maturity_date
+        tests:
+          - not_null
+
+  - name: stg_deposits
+    description: "Staged deposit data from RAW_TIER1.raw_deposits."
+    columns:
+      - name: account_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: account_type_code
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['DDA', 'SAV', 'MMA', 'CD', 'IRA', 'LOC']
+      - name: account_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ACTIVE', 'DORMANT', 'CLOSED', 'FROZEN']
+      - name: current_balance
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 999999999999
+      - name: open_date
+        tests:
+          - not_null
+
+  - name: lv_loan_portfolio
+    description: >
+      All active loans with enriched derived fields. Excludes PAID status.
+      Primary view for portfolio analysis, concentration reporting, and maturity laddering.
+    columns:
+      - name: loan_id
+        tests:
+          - not_null
+          - unique
+      - name: net_exposure
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 999999999999
+      - name: ltv
+        description: "Loan-to-value ratio. Null if no collateral value. Calculated by Dropsilo — do not include pre-calculated version in source files."
+      - name: past_due_bucket
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['current', '1-29', '30-59', '60-89', '90+']
+      - name: maturity_bucket
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['<1yr', '1-3yr', '3-5yr', '5yr+']
+
+  - name: lv_customer_360
+    description: >
+      Complete customer relationship view. One row per customer.
+      Aggregates loan exposure, deposit balances, and compliance flags.
+      Enriched with census ZIP demographics when stg_census_geo is activated.
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: total_relationship_value
+        description: "Sum of total_loan_exposure + total_deposits. Dropsilo-calculated — do not source pre-computed from core."
+      - name: tenure_years
+        description: "Years since customer_since_date. Dropsilo-calculated."
+
+  - name: lv_credit_quality
+    description: >
+      Problem asset and credit quality view. Includes classified loans (Special Mention through Loss),
+      all non-accrual, and all past-due loans. Ordered by severity then exposure.
+      Used for exam preparation, ALCO reporting, and BSA/AML high-risk overlap analysis.
+    columns:
+      - name: loan_id
+        tests:
+          - not_null
+      - name: regulatory_classification
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['PASS', 'SPECIAL_MENTION', 'SUBSTANDARD', 'DOUBTFUL', 'LOSS']
+              config:
+                where: "regulatory_classification is not null"
+
+  - name: lv_officer_performance
+    description: >
+      Officer-level portfolio summary. One row per officer_id.
+      Aggregates loan portfolio metrics (balance, delinquency, classified assets, originations)
+      and deposit portfolio metrics (total balance, maturity alerts).
+    columns:
+      - name: officer_id
+        tests:
+          - not_null
+          - unique
+      - name: delinquency_rate
+        description: "Ratio of past-due loan count to total active loan count. Dropsilo-calculated."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                max_value: 1

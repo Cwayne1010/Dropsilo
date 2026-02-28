@@ -1,0 +1,23 @@
+name: 'dropsilo'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dropsilo'
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  dropsilo:
+    staging:
+      +schema: STAGING
+      +materialized: view
+    intermediate:
+      +schema: INTERMEDIATE
+      +materialized: ephemeral
+    logic_views:
+      +schema: DBT_LOGIC_VIEWS
+      +materialized: view

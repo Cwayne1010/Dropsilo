@@ -1,0 +1,55 @@
+{
+  "webhooks": {
+    "example": {
+      "directive": "directives/example_directive.md",
+      "description": "Example webhook endpoint",
+      "allowed_tools": ["send_email", "read_sheet", "update_sheet"]
+    },
+    "appraisal-order": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Receive new appraisal order request",
+      "script": "execution/appraisal/receive_order.py",
+      "allowed_tools": ["read_sheet", "update_sheet"]
+    },
+    "appraisal-find-appraisers": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Find qualified appraisers for an order",
+      "script": "execution/appraisal/find_appraisers.py",
+      "allowed_tools": ["read_sheet"]
+    },
+    "appraisal-send-rfp": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Send RFP emails to appraisers",
+      "script": "execution/appraisal/send_rfp.py",
+      "allowed_tools": ["send_email", "read_sheet", "update_sheet"]
+    },
+    "appraisal-record-quote": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Record incoming appraiser quote",
+      "script": "execution/appraisal/collect_quotes.py",
+      "allowed_tools": ["read_sheet", "update_sheet"]
+    },
+    "appraisal-quote-summary": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Get/send quote summary for order",
+      "script": "execution/appraisal/collect_quotes.py",
+      "allowed_tools": ["send_email", "read_sheet"]
+    },
+    "appraisal-engage": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Engage appraiser and send decline notices",
+      "script": "execution/appraisal/send_engagement.py",
+      "allowed_tools": ["send_email", "read_sheet", "update_sheet"]
+    },
+    "appraisal-delivery": {
+      "directive": "directives/Dropsilo/appraisal_order_workflow.md",
+      "description": "Receive completed appraisal report delivery",
+      "allowed_tools": ["send_email", "read_sheet", "update_sheet"]
+    },
+    "dropsilo-contact": {
+      "directive": "directives/Dropsilo/contact_form_submission.md",
+      "description": "Process contact form submission from dropsilo.ai website",
+      "allowed_tools": ["send_email", "update_sheet"]
+    }
+  }
+}

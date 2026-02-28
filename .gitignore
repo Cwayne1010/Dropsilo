@@ -1,0 +1,58 @@
+# Environment and credentials
+.env
+credentials.json
+token.json
+
+# Temporary files
+.tmp/
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Modal
+.modal/
+
+# dbt
+profiles.yml
+c. execution/dbt/target/
+c. execution/dbt/dbt_packages/
+c. execution/dbt/logs/

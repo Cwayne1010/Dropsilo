@@ -1,0 +1,767 @@
+{
+  "name": "Appraisal Quote Collection & Engagement",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appraisal-quote",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-quote",
+      "name": "Webhook - Quote Submission",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "appraisal-quote"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-order-id",
+              "leftValue": "={{ $json.order_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "check-appraiser-id",
+              "leftValue": "={{ $json.appraiser_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            },
+            {
+              "id": "check-fee",
+              "leftValue": "={{ $json.fee }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-quote",
+      "name": "Validate Quote",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate quote ID\nconst date = new Date();\nconst dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');\nconst random = Math.random().toString(36).substring(2, 6).toUpperCase();\nconst quoteId = `Q-${dateStr}-${random}`;\n\nreturn [{\n  json: {\n    ...$input.first().json,\n    quote_id: quoteId,\n    submitted_at: date.toISOString(),\n    selected: 'FALSE'\n  }\n}];"
+      },
+      "id": "generate-quote-id",
+      "name": "Generate Quote ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 200]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_PANEL_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appraiser Panel",
+          "mode": "list"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "lookupColumn": "appraiser_id",
+              "lookupValue": "={{ $json.appraiser_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "lookup-appraiser",
+      "name": "Lookup Appraiser",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [910, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge quote data with appraiser info\nconst quote = $('Generate Quote ID').first().json;\nconst appraiser = $input.first().json;\n\nreturn [{\n  json: {\n    ...quote,\n    appraiser_name: appraiser.name || 'Unknown',\n    appraiser_email: appraiser.email || '',\n    appraiser_quality_score: appraiser.quality_score || '0'\n  }\n}];"
+      },
+      "id": "merge-data",
+      "name": "Merge Quote & Appraiser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_QUOTES_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotes",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "quote_id": "={{ $json.quote_id }}",
+            "order_id": "={{ $json.order_id }}",
+            "appraiser_id": "={{ $json.appraiser_id }}",
+            "appraiser_name": "={{ $json.appraiser_name }}",
+            "appraiser_email": "={{ $json.appraiser_email }}",
+            "fee": "={{ $json.fee }}",
+            "turnaround_days": "={{ $json.turnaround_days }}",
+            "notes": "={{ $json.notes }}",
+            "submitted_at": "={{ $json.submitted_at }}",
+            "selected": "={{ $json.selected }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "log-quote",
+      "name": "Log Quote to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [1350, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, quote_id: $json.quote_id, message: 'Quote recorded successfully' }) }}"
+      },
+      "id": "respond-quote-success",
+      "name": "Respond Quote Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: ['Missing required fields: order_id, appraiser_id, fee'] }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-quote-error",
+      "name": "Respond Quote Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [690, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appraisal-engage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-engage",
+      "name": "Webhook - Engage Appraiser",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 700],
+      "webhookId": "appraisal-engage"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "lookupColumn": "order_id",
+              "lookupValue": "={{ $json.order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-order",
+      "name": "Get Order Details",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [470, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_QUOTES_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotes",
+          "mode": "list"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "lookupColumn": "order_id",
+              "lookupValue": "={{ $('Webhook - Engage Appraiser').first().json.order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-quotes",
+      "name": "Get All Quotes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [690, 700],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get engagement request\nconst request = $('Webhook - Engage Appraiser').first().json;\nconst order = $('Get Order Details').first().json;\nconst quotes = $input.all().map(i => i.json);\n\n// Find selected quote\nlet selectedQuote;\nif (request.quote_id) {\n  selectedQuote = quotes.find(q => q.quote_id === request.quote_id);\n} else if (request.auto) {\n  // Auto-select: rank and pick best\n  const ranked = quotes.map(q => {\n    const fee = parseFloat(q.fee || 0);\n    const turnaround = parseInt(q.turnaround_days || 14);\n    const quality = parseFloat(q.appraiser_quality_score || 0);\n    const score = (fee / 1000) + turnaround - (quality * 2);\n    return { ...q, _score: score };\n  }).sort((a, b) => a._score - b._score);\n  selectedQuote = ranked[0];\n}\n\nif (!selectedQuote) {\n  return [{ json: { error: 'Quote not found', order_id: request.order_id } }];\n}\n\n// Calculate due date\nconst turnaround = parseInt(selectedQuote.turnaround_days || 10);\nconst dueDate = new Date();\ndueDate.setDate(dueDate.getDate() + turnaround);\n\n// Build engagement data\nconst engagement = {\n  order_id: request.order_id,\n  order: order,\n  selected_quote: selectedQuote,\n  declined_quotes: quotes.filter(q => q.quote_id !== selectedQuote.quote_id),\n  engaged_appraiser_id: selectedQuote.appraiser_id,\n  engaged_appraiser_name: selectedQuote.appraiser_name,\n  engaged_appraiser_email: selectedQuote.appraiser_email,\n  engaged_fee: selectedQuote.fee,\n  due_date: dueDate.toISOString().slice(0, 10)\n};\n\nreturn [{ json: engagement }];"
+      },
+      "id": "select-quote",
+      "name": "Select Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 700]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-selection",
+      "name": "Valid Selection?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1130, 700]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.engaged_appraiser_email }}",
+        "subject": "Engagement Confirmation - Order #{{ $json.order_id }}",
+        "message": "Dear {{ $json.engaged_appraiser_name }},\n\nCongratulations! You have been selected for the following appraisal assignment.\n\n═══════════════════════════════════════\nENGAGEMENT DETAILS\n═══════════════════════════════════════\n\nOrder #: {{ $json.order_id }}\nProperty: {{ $json.order.property_address }}\nType: {{ $json.order.property_type }}\nScope: {{ $json.order.scope }}\n\nAgreed Fee: ${{ $json.engaged_fee }}\nDue Date: {{ $json.due_date }}\n\n═══════════════════════════════════════\nPROPERTY ACCESS\n═══════════════════════════════════════\n\nContact: {{ $json.order.contact_name }}\nEmail: {{ $json.order.contact_email }}\n\n{{ $json.order.special_instructions ? 'Special Instructions: ' + $json.order.special_instructions : '' }}\n\n═══════════════════════════════════════\nNEXT STEPS\n═══════════════════════════════════════\n\n1. Reply to confirm acceptance\n2. Schedule property inspection\n3. Deliver report by {{ $json.due_date }}\n\n───────────────────────────────────────\nBest regards,\nOrder Desk\n{{ $env.COMPANY_NAME }}",
+        "options": {}
+      },
+      "id": "send-engagement",
+      "name": "Send Engagement Letter",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1350, 600],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get declined quotes\nconst engagement = $('Select Quote').first().json;\nconst declined = engagement.declined_quotes || [];\n\nif (declined.length === 0) {\n  return [];\n}\n\nreturn declined.map(q => ({\n  json: {\n    ...q,\n    order_id: engagement.order_id,\n    order_property: engagement.order?.property_address || ''\n  }\n}));"
+      },
+      "id": "get-declined",
+      "name": "Get Declined Appraisers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 600]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.appraiser_email }}",
+        "subject": "Quote Update - Order #{{ $json.order_id }}",
+        "message": "Dear {{ $json.appraiser_name }},\n\nThank you for submitting your quote for Order #{{ $json.order_id }}.\n\nWe appreciate your interest in this assignment. After careful review of all submissions, we have selected another appraiser for this particular order.\n\nWe value our relationship with you and look forward to sending you future opportunities.\n\nBest regards,\nOrder Desk\n{{ $env.COMPANY_NAME }}",
+        "options": {}
+      },
+      "id": "send-decline",
+      "name": "Send Decline Notice",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1790, 600],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $('Select Quote').first().json.order_id }}",
+            "status": "engaged",
+            "engaged_appraiser_id": "={{ $('Select Quote').first().json.engaged_appraiser_id }}",
+            "engaged_appraiser_name": "={{ $('Select Quote').first().json.engaged_appraiser_name }}",
+            "engaged_fee": "={{ $('Select Quote').first().json.engaged_fee }}",
+            "due_date": "={{ $('Select Quote').first().json.due_date }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "matchingColumns": ["order_id"]
+      },
+      "id": "update-order-engaged",
+      "name": "Update Order - Engaged",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [2010, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_QUOTES_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotes",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "quote_id": "={{ $('Select Quote').first().json.selected_quote.quote_id }}",
+            "selected": "TRUE"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "matchingColumns": ["quote_id"]
+      },
+      "id": "mark-quote-selected",
+      "name": "Mark Quote Selected",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [2230, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, order_id: $('Select Quote').first().json.order_id, engaged_appraiser: $('Select Quote').first().json.engaged_appraiser_name, fee: $('Select Quote').first().json.engaged_fee, due_date: $('Select Quote').first().json.due_date }) }}"
+      },
+      "id": "respond-engage-success",
+      "name": "Respond Engage Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2450, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: [$json.error || 'Engagement failed'] }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-engage-error",
+      "name": "Respond Engage Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1350, 800]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "appraisal-quote-summary",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-summary",
+      "name": "Webhook - Quote Summary",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 1100],
+      "webhookId": "appraisal-quote-summary"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_QUOTES_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Quotes",
+          "mode": "list"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "lookupColumn": "order_id",
+              "lookupValue": "={{ $json.query.order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-quotes-for-summary",
+      "name": "Get Quotes for Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [470, 1100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const orderId = $('Webhook - Quote Summary').first().json.query?.order_id;\nconst quotes = $input.all().map(i => i.json);\n\nif (quotes.length === 0) {\n  return [{ json: { \n    success: true, \n    order_id: orderId,\n    quotes: [], \n    count: 0,\n    message: 'No quotes found for this order'\n  }}];\n}\n\n// Rank quotes\nconst ranked = quotes.map(q => {\n  const fee = parseFloat(q.fee || 0);\n  const turnaround = parseInt(q.turnaround_days || 14);\n  const score = (fee / 1000) + turnaround;\n  return { ...q, _score: score };\n}).sort((a, b) => a._score - b._score);\n\n// Add rank\nranked.forEach((q, i) => {\n  q.rank = i + 1;\n  q.recommended = i === 0;\n  delete q._score;\n});\n\nreturn [{ json: {\n  success: true,\n  order_id: orderId,\n  quotes: ranked,\n  count: ranked.length,\n  recommended_quote_id: ranked[0]?.quote_id,\n  recommended_appraiser: ranked[0]?.appraiser_name\n}}];"
+      },
+      "id": "rank-quotes-summary",
+      "name": "Rank & Format Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 1100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "respond-summary",
+      "name": "Respond Summary",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [910, 1100]
+    }
+  ],
+  "connections": {
+    "Webhook - Quote Submission": {
+      "main": [
+        [
+          {
+            "node": "Validate Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Quote": {
+      "main": [
+        [
+          {
+            "node": "Generate Quote ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Quote Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Quote ID": {
+      "main": [
+        [
+          {
+            "node": "Lookup Appraiser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Appraiser": {
+      "main": [
+        [
+          {
+            "node": "Merge Quote & Appraiser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Quote & Appraiser": {
+      "main": [
+        [
+          {
+            "node": "Log Quote to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Quote to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Respond Quote Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Engage Appraiser": {
+      "main": [
+        [
+          {
+            "node": "Get Order Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Order Details": {
+      "main": [
+        [
+          {
+            "node": "Get All Quotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Quotes": {
+      "main": [
+        [
+          {
+            "node": "Select Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Quote": {
+      "main": [
+        [
+          {
+            "node": "Valid Selection?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Selection?": {
+      "main": [
+        [
+          {
+            "node": "Send Engagement Letter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Engage Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Engagement Letter": {
+      "main": [
+        [
+          {
+            "node": "Get Declined Appraisers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Declined Appraisers": {
+      "main": [
+        [
+          {
+            "node": "Send Decline Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Decline Notice": {
+      "main": [
+        [
+          {
+            "node": "Update Order - Engaged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order - Engaged": {
+      "main": [
+        [
+          {
+            "node": "Mark Quote Selected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Quote Selected": {
+      "main": [
+        [
+          {
+            "node": "Respond Engage Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Quote Summary": {
+      "main": [
+        [
+          {
+            "node": "Get Quotes for Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Quotes for Order": {
+      "main": [
+        [
+          {
+            "node": "Rank & Format Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rank & Format Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Appraisal"
+    }
+  ],
+  "triggerCount": 3
+}

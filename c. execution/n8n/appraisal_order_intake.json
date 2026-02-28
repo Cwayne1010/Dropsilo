@@ -1,0 +1,449 @@
+{
+  "name": "Appraisal Order Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "appraisal-order-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000001",
+      "name": "Webhook - Receive Order",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "appraisal-order-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst data = raw.body || raw;\nconst errors = [];\n\n// Check required fields\nconst required = [\n  'property_address',\n  'property_type',\n  'property_state',\n  'client_id',\n  'contact_email'\n];\n\nfor (const field of required) {\n  if (!data[field] || String(data[field]).trim() === '') {\n    errors.push(`Missing required field: ${field}`);\n  }\n}\n\n// Validate property_type enum\nconst validTypes = [\n  'Office', 'Retail', 'Industrial',\n  'Multifamily', 'Mixed-Use', 'Special Purpose'\n];\nif (data.property_type && !validTypes.includes(data.property_type)) {\n  errors.push(\n    `Invalid property_type '${data.property_type}'. ` +\n    `Must be one of: ${validTypes.join(', ')}`\n  );\n}\n\n// Validate urgency enum\nconst validUrgency = ['Standard', 'Rush', 'Super Rush'];\nif (data.urgency && !validUrgency.includes(data.urgency)) {\n  errors.push(\n    `Invalid urgency '${data.urgency}'. ` +\n    `Must be one of: ${validUrgency.join(', ')}`\n  );\n}\n\n// Validate scope enum\nconst validScope = ['Full Appraisal', 'Limited Appraisal', 'Evaluation'];\nif (data.scope && !validScope.includes(data.scope)) {\n  errors.push(\n    `Invalid scope '${data.scope}'. ` +\n    `Must be one of: ${validScope.join(', ')}`\n  );\n}\n\n// Basic email check\nif (data.contact_email && !data.contact_email.includes('@')) {\n  errors.push('Invalid contact_email format');\n}\n\nreturn [{\n  json: {\n    ...data,\n    _valid: errors.length === 0,\n    _errors: errors\n  }\n}];"
+      },
+      "id": "a1000000-0000-0000-0000-000000000002",
+      "name": "Validate Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "valid-check",
+              "leftValue": "={{ $json._valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000003",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, errors: $json._errors }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "a1000000-0000-0000-0000-000000000004",
+      "name": "Respond - Invalid Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [860, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Generate unique order ID\nconst now = new Date();\nconst year = now.getFullYear();\nconst seq = Math.floor(Math.random() * 100000)\n  .toString()\n  .padStart(5, '0');\nconst orderId = `ORD-${year}-${seq}`;\n\n// Calculate quotes deadline based on urgency\nconst urgency = data.urgency || 'Standard';\nconst deadlineHours = {\n  'Standard': 48,\n  'Rush': 24,\n  'Super Rush': 12\n}[urgency] || 48;\n\nconst quotesDeadline = new Date(\n  now.getTime() + deadlineHours * 60 * 60 * 1000\n);\n\n// Set defaults\nconst scope = data.scope || 'Full Appraisal';\nconst urg = data.urgency || 'Standard';\n\n// Remove internal validation fields\nconst { _valid, _errors, ...cleanData } = data;\n\nreturn [{\n  json: {\n    ...cleanData,\n    order_id: orderId,\n    scope: scope,\n    urgency: urg,\n    status: 'pending',\n    created_at: now.toISOString(),\n    quotes_deadline: quotesDeadline.toISOString(),\n    quotes_deadline_display: quotesDeadline.toLocaleString('en-US', {\n      weekday: 'short',\n      month: 'short',\n      day: 'numeric',\n      hour: 'numeric',\n      minute: '2-digit',\n      timeZoneName: 'short'\n    })\n  }\n}];"
+      },
+      "id": "a1000000-0000-0000-0000-000000000005",
+      "name": "Generate Order ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list",
+          "cachedResultName": "Orders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $json.order_id }}",
+            "status": "={{ $json.status }}",
+            "property_address": "={{ $json.property_address }}",
+            "property_city": "={{ $json.property_city }}",
+            "property_state": "={{ $json.property_state }}",
+            "property_type": "={{ $json.property_type }}",
+            "land_use": "={{ $json.land_use }}",
+            "loan_amount": "={{ $json.loan_amount }}",
+            "loan_purpose": "={{ $json.loan_purpose }}",
+            "scope": "={{ $json.scope }}",
+            "urgency": "={{ $json.urgency }}",
+            "client_id": "={{ $json.client_id }}",
+            "contact_name": "={{ $json.contact_name }}",
+            "contact_email": "={{ $json.contact_email }}",
+            "special_instructions": "={{ $json.special_instructions }}",
+            "created_at": "={{ $json.created_at }}",
+            "rfp_sent_at": "",
+            "quotes_deadline": "={{ $json.quotes_deadline }}",
+            "engaged_appraiser_id": "",
+            "engaged_appraiser_email": "",
+            "engaged_appraiser_name": "",
+            "engaged_fee": "",
+            "due_date": "",
+            "delivered_at": ""
+          }
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000006",
+      "name": "Log Order to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1080, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_PANEL_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appraiser Panel",
+          "mode": "list",
+          "cachedResultName": "Appraiser Panel"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000007",
+      "name": "Read Appraiser Panel",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1300, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const order = $('Log Order to Sheets').first().json;\nconst appraisers = $input.all().map(item => item.json);\n\nconst propertyState = (order.property_state || '').toUpperCase().trim();\nconst propertyType = (order.property_type || '').trim();\n\n// ── Filter by qualifications ──\nconst qualified = appraisers.filter(a => {\n  const states = (a.states || '')\n    .split(',')\n    .map(s => s.trim().toUpperCase());\n  if (!states.includes(propertyState)) return false;\n\n  const types = (a.property_types || '')\n    .split(',')\n    .map(t => t.trim());\n  if (!types.includes(propertyType)) return false;\n\n  return true;\n});\n\n// ── Return top 5 or no-match flag ──\nconst top = qualified.slice(0, 5);\n\nif (top.length === 0) {\n  return [{\n    json: {\n      matched: 'no',\n      order_id: order.order_id\n    }\n  }];\n}\n\nreturn top.map((a, i) => ({\n  json: {\n    ...a,\n    matched: 'yes',\n    rank: i + 1,\n    order_id: order.order_id,\n    order_property_address: order.property_address,\n    order_property_type: propertyType,\n    order_scope: order.scope,\n    order_urgency: order.urgency || 'Standard',\n    quotes_deadline: order.quotes_deadline,\n    quotes_deadline_display: order.quotes_deadline_display\n  }\n}));"
+      },
+      "id": "a1000000-0000-0000-0000-000000000008",
+      "name": "Filter & Rank Appraisers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-match",
+              "leftValue": "={{ $json.matched }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000009",
+      "name": "Has Qualified Appraisers?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1740, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, order_id: $json.order_id, message: 'Order received but no qualified appraisers found. Ops team notified.', appraisers_contacted: 0 }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "a1000000-0000-0000-0000-000000000010",
+      "name": "Respond - No Match",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1960, 520]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Quote Request — {{ $json.order_property_type }} Appraisal — Order #{{ $json.order_id }}",
+        "message": "=Dear {{ $json.name }},\n\nWe have an appraisal assignment available and would like to request your quote.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nORDER DETAILS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nOrder #:     {{ $json.order_id }}\nProperty:    {{ $json.order_property_address }}\nType:        {{ $json.order_property_type }}\nScope:       {{ $json.order_scope }}\nUrgency:     {{ $json.order_urgency }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nQUOTE SUBMISSION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nDeadline: {{ $json.quotes_deadline_display }}\n\nPlease reply to this email with:\n  • Your fee\n  • Turnaround time (business days)\n  • Any conditions or notes\n\nIf you are unavailable, please decline promptly\nso we can reassign.\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nBest regards,\nOrder Desk",
+        "options": {}
+      },
+      "id": "a1000000-0000-0000-0000-000000000011",
+      "name": "Send RFP Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1960, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_ME",
+          "name": "Gmail"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const sent = $input.all();\nconst order = $('Generate Order ID').first().json;\n\nconst contacted = sent.map(item => ({\n  name: item.json.name || 'Unknown',\n  email: item.json.email || 'Unknown',\n  rank: item.json.rank || 0\n}));\n\nreturn [{\n  json: {\n    order_id: order.order_id,\n    status: 'rfp_sent',\n    rfp_count: contacted.length,\n    rfp_sent_at: new Date().toISOString(),\n    appraisers_contacted: contacted\n  }\n}];"
+      },
+      "id": "a1000000-0000-0000-0000-000000000012",
+      "name": "Summarize RFP Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2180, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $env.APPRAISAL_ORDERS_SHEET_ID }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "list",
+          "cachedResultName": "Orders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $json.order_id }}",
+            "status": "rfp_sent",
+            "rfp_sent_at": "={{ $json.rfp_sent_at }}"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        },
+        "matchingColumns": ["order_id"]
+      },
+      "id": "a1000000-0000-0000-0000-000000000013",
+      "name": "Update Order Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2400, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_ME",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, order_id: $json.order_id, message: 'Order received and RFPs sent', appraisers_contacted: $json.rfp_count }) }}"
+      },
+      "id": "a1000000-0000-0000-0000-000000000014",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2620, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Receive Order": {
+      "main": [
+        [
+          {
+            "node": "Validate Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Fields": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Generate Order ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond - Invalid Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Order ID": {
+      "main": [
+        [
+          {
+            "node": "Log Order to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Order to Sheets": {
+      "main": [
+        [
+          {
+            "node": "Read Appraiser Panel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Appraiser Panel": {
+      "main": [
+        [
+          {
+            "node": "Filter & Rank Appraisers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter & Rank Appraisers": {
+      "main": [
+        [
+          {
+            "node": "Has Qualified Appraisers?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Qualified Appraisers?": {
+      "main": [
+        [
+          {
+            "node": "Respond - No Match",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send RFP Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send RFP Email": {
+      "main": [
+        [
+          {
+            "node": "Summarize RFP Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize RFP Results": {
+      "main": [
+        [
+          {
+            "node": "Update Order Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Order Status": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Appraisal"
+    },
+    {
+      "name": "Production"
+    }
+  ],
+  "triggerCount": 1
+}

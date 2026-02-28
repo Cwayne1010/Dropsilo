@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(set -a)",
+      "Bash(source \"../../.env\")",
+      "Bash(set +a)",
+      "Bash(/Users/eliwayne/Library/Python/3.9/bin/dbt deps)",
+      "Bash(grep -n \"ref\\(''stg_census_geo\\\\|ref\\(''stg_fred\\\\|ref\\(''stg_ffiec\\\\|ref\\(''stg_documents\" \"/Users/eliwayne/Library/Mobile Documents/com~apple~CloudDocs/cadenwayne.com/Dropsilo_DOE/c. execution/dbt/models/logic_views/\"*.sql)",
+      "Bash(pip3 list)",
+      "Bash(python3 -c \"import dbt; print\\(dbt.__file__\\)\")",
+      "Bash(python3 -m dbt --version)",
+      "Bash(export SNOWFLAKE_ACCOUNT=XQVOXXD-XA71085)",
+      "Bash(export SNOWFLAKE_USER=ELIWAYNE)",
+      "Bash(export SNOWFLAKE_PASSWORD='$4MyKidsLife04')",
+      "Bash(export SNOWFLAKE_ROLE=ACCOUNTADMIN)",
+      "Bash(export SNOWFLAKE_WAREHOUSE=DROPSILO_WH)",
+      "Bash(~/Library/Python/3.9/bin/dbt run --select intermediate logic_views)",
+      "Bash(~/Library/Python/3.9/bin/dbt test)",
+      "Bash(python3 \"c. execution/generate_mock_bank_data.py\")",
+      "Bash(python3 \"c. execution/ingest_flat_files.py\" --truncate)",
+      "Bash(~/Library/Python/3.9/bin/dbt run)",
+      "Bash(python3 -c \"import snowflake.connector, pandas, dotenv\")",
+      "Bash(source ../../.env)",
+      "Bash(dbt run)",
+      "Bash(pip3 show dbt-core)",
+      "Bash(pip3 show dbt-snowflake)",
+      "Read(//Users/eliwayne/Library/Python/3.9/bin/**)"
+    ]
+  }
+}
